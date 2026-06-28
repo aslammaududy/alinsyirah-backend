@@ -95,23 +95,21 @@ class BundlePaymentService
             // The structural support (discount_amount on payment_attempts,
             // gross_amount = sum(allocated) - discount) is in place.
 
-            $payload = $this->midtrans->buildPaymentLinkPayload([
-                'order_id' => $orderId,
-                'gross_amount' => $grossAmount,
-                'usage_limit' => $usageLimit ?? 1,
-                'expiry' => $expiry,
-                'item_details' => $itemDetails,
-                'customer_details' => $customerDetails ?? [
-                    'first_name' => $student->parent_name,
-                    'email' => $student->parent_email,
-                    'phone' => $student->parent_phone,
-                ],
-                'enabled_payments' => $enabledPayments,
-                'callbacks' => $callbacks,
-            ]);
-
             try {
-                $response = $this->midtrans->createPaymentLink($payload);
+                $response = $this->midtrans->createPaymentLink([
+                    'order_id' => $orderId,
+                    'gross_amount' => $grossAmount,
+                    'usage_limit' => $usageLimit ?? 1,
+                    'expiry' => $expiry,
+                    'item_details' => $itemDetails,
+                    'customer_details' => $customerDetails ?? [
+                        'first_name' => $student->parent_name,
+                        'email' => $student->parent_email,
+                        'phone' => $student->parent_phone,
+                    ],
+                    'enabled_payments' => $enabledPayments,
+                    'callbacks' => $callbacks,
+                ]);
             } catch (RuntimeException $e) {
                 $attempt->update(['status' => 'failed']);
 

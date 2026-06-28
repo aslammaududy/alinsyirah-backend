@@ -74,7 +74,7 @@ class TuitionInvoiceController extends Controller
                     'allocated_amount' => $grossAmount,
                 ]);
 
-                $payload = $this->midtrans->buildPaymentLinkPayload([
+                $response = $this->midtrans->createPaymentLink([
                     'order_id' => $orderId,
                     'gross_amount' => $grossAmount,
                     'item_details' => [
@@ -91,8 +91,6 @@ class TuitionInvoiceController extends Controller
                         'phone' => $student->parent_phone,
                     ],
                 ]);
-
-                $response = $this->midtrans->createPaymentLink($payload);
 
                 $attempt->update([
                     'payment_url' => $response['payment_url'],
