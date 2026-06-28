@@ -70,7 +70,7 @@ return [
             'hideTryIt' => false,
             'hideSchemas' => false,
             'logo' => '',
-            'tryItCredentialsPolicy' => 'include',
+            'tryItCredentialsPolicy' => 'omit',
             'layout' => 'responsive',
             'router' => 'hash',
         ],
@@ -85,7 +85,7 @@ return [
             'darkMode' => false,
             'showDeveloperTools' => 'never',
             'agent' => ['disabled' => true],
-            'credentials' => 'include',
+            'withCredentials' => false,
         ],
     ],
 
