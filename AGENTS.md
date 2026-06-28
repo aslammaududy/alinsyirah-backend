@@ -131,3 +131,54 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Do NOT delete tests without approval.
 
 </laravel-boost-guidelines>
+
+---
+
+# Project: SIMDIK Al Insyirah – Tuition Payment Backend
+
+## Stack
+- Laravel 13 / PHP 8.4 / SQLite
+- Sanctum (personal access tokens, not SPA cookies)
+- Scramble (OpenAPI docs at `/docs/api`, tryItCredentialsPolicy: omit)
+- Midtrans Payment Link (no sandbox keys set in `.env`)
+
+## Models & Status Machines
+| Model | States |
+|---|---|
+| `TuitionInvoice` | `draft` → `pending_payment` → `paid` / `expired` / `cancelled` (expired → `pending_payment` also allowed) |
+| `PaymentAttempt` | `creating` → `created` / `failed` → `paid` / `expired` / `cancelled` |
+
+- Transitions guarded by `canTransitionTo()` / `transitionTo()` on each model.
+- Terminal states (`paid`, `expired`, `cancelled`) are never overwritten.
+
+## Architecture Decisions
+- **No real Midtrans calls in tests** — `Http::fake()` the payment-link endpoint.
+- **`EnsureFrontendRequestsAreStateful` removed** from API stack (admin-only API, no SPA session auth).
+- **`MidtransService::createPaymentLink` is the sole caller of `buildPaymentLinkPayload`** — callers pass raw params, never pre-built payloads.
+- **`BundlePaymentService`** handles both multi-invoice bundle and annual prepayment flows.
+- **Pivot `payment_attempt_invoices`** links invoices to payment attempts with `allocated_amount`.
+- **Webhook CSRF exempt** — `midtrans/webhook` uses `->withoutMiddleware(VerifyCsrfToken::class)`.
+
+## Routes (13 API endpoints)
+| Method | Path | Auth |
+|---|---|---|
+| POST | `/api/auth/register` | No |
+| POST | `/api/auth/login` | No |
+| POST | `/api/auth/logout` | Sanctum |
+| GET | `/api/auth/me` | Sanctum |
+| CRUD | `/api/students` | Sanctum |
+| GET/POST | `/api/tuition-invoices` | Sanctum |
+| GET | `/api/tuition-invoices/{id}` | Sanctum |
+| POST | `/api/tuition-invoices/{id}/pay` | Sanctum |
+| GET | `/api/payment-attempts` | Sanctum |
+| GET | `/api/payment-attempts/{id}` | Sanctum |
+| POST | `/api/payment-attempts/bundle` | Sanctum |
+| POST | `/api/annual-prepayments` | Sanctum |
+| POST | `/api/midtrans/webhook` | No (CSRF exempt) |
+
+## Known Issues
+- **`MIDTRANS_SERVER_KEY` not set** — `pay()`, `bundle()`, and `annual-prepayments` throw when calling Midtrans.
+- **CORS middleware** is a no-op placeholder (registered but does nothing).
+
+## Scheduled Commands
+- `app:generate-monthly-invoices` — run via `php artisan app:generate-monthly-invoices`
