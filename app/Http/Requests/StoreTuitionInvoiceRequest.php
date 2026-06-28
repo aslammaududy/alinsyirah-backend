@@ -15,6 +15,9 @@ class StoreTuitionInvoiceRequest extends FormRequest
     {
         return [
             'student_id' => ['required', 'exists:students,id'],
+            /**
+             * The billing period in YYYY-MM format (e.g. 2025-01).
+             */
             'period' => ['required', 'string', 'regex:/^\d{4}-(0[1-9]|1[0-2])$/'],
             'fee_type' => ['required', 'in:enrollment,spp,other'],
             'description' => ['nullable', 'string', 'max:255'],
