@@ -185,7 +185,6 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 ## Known Issues
 - **`MIDTRANS_SERVER_KEY` not set** — `pay()`, `bundle()`, and `annual-prepayments` throw when calling Midtrans.
-- **CORS middleware** is a no-op placeholder (registered but does nothing).
 
 ## Scheduled Commands
 - `app:generate-monthly-invoices` — run via `php artisan app:generate-monthly-invoices`

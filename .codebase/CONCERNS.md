@@ -12,12 +12,8 @@
   - `midtrans.server_key`
   - `midtrans.payment_link_url`
 - **Status:** Known issue, documented in AGENTS.md
+- **CORS:** Handled by Sanctum — no separate middleware configuration needed. The placeholder `Cors.php` middleware is unused and can be removed.
 
-### 2. CORS Middleware is No-Op
-- **Impact:** CORS headers not set; frontend from different origin will be blocked
-- **Location:** `app/Http/Middleware/Cors.php` — handle() just passes through
-- **Workaround:** Use a proxy or add proper CORS headers
-- **Status:** Placeholder implementation, needs real CORS configuration
 
 ## TODO Items in Code
 
