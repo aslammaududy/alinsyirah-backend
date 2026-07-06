@@ -1,0 +1,8 @@
+{
+  "workflowClass": "explore",
+  "stages": ["discuss", "plan", "execute", "verify"],
+  "currentStage": "discuss",
+  "requiresDesign": false,
+  "requiresPlanApproval": true,
+  "autoVerify": false
+}
