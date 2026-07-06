@@ -10,6 +10,7 @@ use App\Models\TuitionInvoice;
 use App\Services\BundlePaymentService;
 use App\Services\MidtransService;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class PaymentAttemptController extends Controller
@@ -61,5 +62,59 @@ class PaymentAttemptController extends Controller
         } catch (RuntimeException $e) {
             abort(422, $e->getMessage());
         }
+    }
+
+    /**
+     * Cancel a payment attempt and revert its linked invoices.
+     *
+     * - Paid attempts cannot be cancelled.
+     * - The Snap Link is deactivated at Midtrans (best-effort).
+     * - annual_prepayment invoices are deleted permanently.
+     * - manual/scheduled invoices are reverted to draft.
+     */
+    public function cancel(PaymentAttempt $paymentAttempt): PaymentAttemptResource
+    {
+        if ($paymentAttempt->status === 'paid') {
+            abort(422, 'Cannot cancel a paid payment attempt.');
+        }
+
+        if ($paymentAttempt->isTerminal()) {
+            abort(422, 'Payment attempt is already in a terminal state.');
+        }
+
+        DB::transaction(function () use ($paymentAttempt) {
+            // Deactivate Midtrans Snap Link (best-effort, don't fail on error).
+            if ($paymentAttempt->provider_response['id'] ?? null) {
+                try {
+                    $this->midtrans->deactivatePaymentLink(
+                        $paymentAttempt->provider_response['id']
+                    );
+                } catch (\Throwable) {
+                    // Log but don't throw — Midtrans deactivation is best-effort.
+                }
+            }
+
+            // Cancel the payment attempt.
+            $paymentAttempt->update([
+                'status' => 'cancelled',
+                'payment_url' => null,
+            ]);
+
+            // Process linked invoices.
+            foreach ($paymentAttempt->invoices as $invoice) {
+                if ($invoice->generation_source === 'annual_prepayment') {
+                    // Delete permanently to prevent invoice pile-up.
+                    $invoice->delete();
+                } else {
+                    // Revert to draft so it can be paid later.
+                    $invoice->transitionTo('draft');
+                }
+            }
+
+            // Detach pivot records (after potential deletes).
+            $paymentAttempt->paymentAttemptInvoices()->delete();
+        });
+
+        return PaymentAttemptResource::make($paymentAttempt->load('invoices'));
     }
 }

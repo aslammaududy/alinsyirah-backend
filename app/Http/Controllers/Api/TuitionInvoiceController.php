@@ -96,6 +96,7 @@ class TuitionInvoiceController extends Controller
                     'payment_url' => $response['payment_url'],
                     'status' => 'created',
                     'provider_response' => [
+                        'id' => $response['id'],
                         'order_id' => $response['order_id'],
                         'payment_url' => $response['payment_url'],
                         'expiry' => $response['expiry'] ?? null,

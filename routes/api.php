@@ -26,6 +26,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('payment-attempts', [PaymentAttemptController::class, 'index']);
     Route::get('payment-attempts/{payment_attempt}', [PaymentAttemptController::class, 'show']);
     Route::post('payment-attempts/bundle', [PaymentAttemptController::class, 'bundle']);
+    Route::post('payment-attempts/{payment_attempt}/cancel', [PaymentAttemptController::class, 'cancel']);
 
     Route::post('annual-prepayments', [AnnualPrepaymentController::class, 'store']);
 });

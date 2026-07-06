@@ -53,6 +53,19 @@ class MidtransService
         return $response->json();
     }
 
+    /**
+     * Deactivate a Payment Link so it can no longer be paid.
+     * This is the Midtrans "Cancel Payment Link" endpoint.
+     */
+    public function deactivatePaymentLink(string $paymentLinkId): bool
+    {
+        $response = Http::withBasicAuth($this->resolveServerKey(), '')
+            ->timeout(30)
+            ->delete("{$this->resolvePaymentLinkUrl()}/{$paymentLinkId}");
+
+        return $response->successful();
+    }
+
     public function buildPaymentLinkPayload(array $params): array
     {
         $payload = [

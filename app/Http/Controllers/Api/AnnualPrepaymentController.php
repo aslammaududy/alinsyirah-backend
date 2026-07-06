@@ -42,7 +42,7 @@ class AnnualPrepaymentController extends Controller
                     'amount' => $student->monthly_fee,
                     'due_date' => sprintf('%s-%02d-10', $year, $month),
                     'status' => 'draft',
-                    'generation_source' => 'scheduled',
+                    'generation_source' => 'annual_prepayment',
                     'created_by' => $request->user()?->id,
                 ]
             );

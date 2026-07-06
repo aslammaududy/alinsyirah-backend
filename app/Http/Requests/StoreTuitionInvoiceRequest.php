@@ -23,7 +23,7 @@ class StoreTuitionInvoiceRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:255'],
             'amount' => ['required', 'integer', 'min:0'],
             'due_date' => ['required', 'date'],
-            'generation_source' => ['sometimes', 'in:manual,scheduled'],
+            'generation_source' => ['sometimes', 'in:manual,scheduled,annual_prepayment'],
         ];
     }
 }

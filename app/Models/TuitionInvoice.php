@@ -57,7 +57,7 @@ class TuitionInvoice extends Model
     {
         $allowed = match ($this->status) {
             'draft' => ['pending_payment', 'cancelled'],
-            'pending_payment' => ['paid', 'expired', 'cancelled'],
+            'pending_payment' => ['paid', 'expired', 'cancelled', 'draft'],
             'expired' => ['pending_payment'],
             'paid', 'cancelled' => [],
             default => [],
