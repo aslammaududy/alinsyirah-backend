@@ -10,16 +10,17 @@ How a single tuition payment moves from invoice to confirmed payment.
 flowchart TD
     A["Tuition invoice created<br/>Generated monthly per student"]
     B["Bundle invoices for payment<br/>Staff selects invoices to pay"]
-    C["Midtrans payment link sent<br/>Parent completes payment online"]
-    D["Webhook confirms payment<br/>Signature verified automatically"]
-    E["Invoice marked as paid<br/>Status updates across invoices"]
+    C["Payment method selected<br/>QRIS or BSI Bank Transfer"]
+    D["QR code or VA number displayed<br/>Parent scans QR or transfers"]
+    E["Webhook confirms payment<br/>Signature verified automatically"]
+    F["Invoice marked as paid<br/>Status updates across invoices"]
 
-    A --> B --> C --> D --> E
+    A --> B --> C --> D --> E --> F
 ```
 
 ## 2. Database schema
 
-Core tables and relationships. The many-to-many link between invoices and payment attempts is what powers bundled payments (multiple months, or a full annual prepayment, in a single Midtrans link).
+Core tables and relationships. The many-to-many link between invoices and payment attempts is what powers bundled payments (multiple months, or a full annual prepayment, with QRIS or BSI Bank Transfer).
 
 ```mermaid
 erDiagram
@@ -50,7 +51,9 @@ erDiagram
     }
     PAYMENT_ATTEMPTS {
         string provider_order_id
-        string payment_url
+        string payment_method
+        int fee_amount
+        decimal fee_percentage
         string status
         int discount_amount
     }
@@ -86,7 +89,7 @@ flowchart LR
 
 ## 4. Frontend integration sequence
 
-The call sequence a frontend client needs to follow, including the part that trips people up: the Midtrans webhook talks to the backend directly, never to the frontend, so the frontend has to poll for the final status.
+The call sequence a frontend client needs to follow, including the part that trips people up: the Midtrans webhook talks to the backend directly (same as before, works for both QRIS and Bank Transfer), never to the frontend, so the frontend has to poll for the final status.
 
 ```mermaid
 sequenceDiagram
@@ -98,9 +101,12 @@ sequenceDiagram
     API-->>FE: user + token
     FE->>API: GET /tuition-invoices (Bearer token)
     API-->>FE: list of invoices
-    FE->>API: POST /payment-attempts/bundle
-    API-->>FE: payment_url
-    FE->>MT: Redirect parent to payment_url
+    FE->>API: POST /payment-attempts/bundle<br/>{payment_method: "qris" or "bank_transfer"}
+    API->>MT: Create charge (Core API)
+    MT-->>API: QR code URL or VA number
+    API-->>FE: qr_code_url or va_number + fee_amount
+    Note right of FE: Display QR code or VA number to parent
+    FE->>FE: Parent scans QR or transfers money
     MT->>API: Webhook (server-to-server, signed)
     Note right of API: Frontend never sees this call
     FE->>API: GET /payment-attempts/{id} (poll)
