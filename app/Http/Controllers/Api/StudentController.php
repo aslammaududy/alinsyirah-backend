@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreStudentRequest;
 use App\Http\Requests\UpdateStudentRequest;
+use App\Http\Requests\UploadPhotoRequest;
 use App\Http\Resources\StudentResource;
 use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class StudentController extends Controller
 {
@@ -39,5 +42,41 @@ class StudentController extends Controller
         $student->delete();
 
         return response()->json(['message' => 'Student deleted successfully.']);
+    }
+
+    public function uploadPhoto(UploadPhotoRequest $request, Student $student): StudentResource|JsonResponse
+    {
+        try {
+            $student->uploadPhoto($request->file('photo'));
+
+            return StudentResource::make($student->fresh());
+        } catch (Throwable $e) {
+            Log::error('Failed to upload student photo', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Photo upload failed. Please try again later.',
+            ], 503);
+        }
+    }
+
+    public function deletePhoto(Student $student): JsonResponse
+    {
+        try {
+            $student->deletePhoto();
+
+            return response()->json(['message' => 'Profile photo deleted successfully.']);
+        } catch (Throwable $e) {
+            Log::error('Failed to delete student photo', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Photo deletion failed. Please try again later.',
+            ], 503);
+        }
     }
 }

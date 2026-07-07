@@ -25,4 +25,11 @@ class StudentFactory extends Factory
             'status' => 'active',
         ];
     }
+
+    public function withPhoto(): static
+    {
+        return $this->state(fn () => [
+            'photo_url' => 'students/'.fake()->numberBetween(1, 1000).'/'.fake()->uuid().'.jpg',
+        ]);
+    }
 }

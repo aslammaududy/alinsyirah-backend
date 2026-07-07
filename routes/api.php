@@ -20,6 +20,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('auth/me', [AuthController::class, 'me']);
 
     Route::apiResource('students', StudentController::class);
+    Route::post('students/{student}/photo', [StudentController::class, 'uploadPhoto'])->middleware('throttle:upload');
+    Route::delete('students/{student}/photo', [StudentController::class, 'deletePhoto'])->middleware('throttle:upload');
 
     Route::get('tuition-invoices', [TuitionInvoiceController::class, 'index']);
     Route::post('tuition-invoices', [TuitionInvoiceController::class, 'store']);
