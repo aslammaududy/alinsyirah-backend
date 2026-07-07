@@ -166,22 +166,40 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - **Pivot `payment_attempt_invoices`** links invoices to payment attempts with `allocated_amount`.
 - **Webhook CSRF exempt** — `midtrans/webhook` uses `->withoutMiddleware(VerifyCsrfToken::class)`.
 
-## Routes (13 API endpoints)
-| Method | Path | Auth |
-|---|---|---|
-| POST | `/api/auth/register` | No |
-| POST | `/api/auth/login` | No |
-| POST | `/api/auth/logout` | Sanctum |
-| GET | `/api/auth/me` | Sanctum |
-| CRUD | `/api/students` | Sanctum |
-| GET/POST | `/api/tuition-invoices` | Sanctum |
-| GET | `/api/tuition-invoices/{id}` | Sanctum |
-| POST | `/api/tuition-invoices/{id}/pay` | Sanctum |
-| GET | `/api/payment-attempts` | Sanctum |
-| GET | `/api/payment-attempts/{id}` | Sanctum |
-| POST | `/api/payment-attempts/bundle` | Sanctum |
-| POST | `/api/annual-prepayments` | Sanctum |
-| POST | `/api/midtrans/webhook` | No (CSRF exempt) |
+## Routes (33 API endpoints)
+| Method | Path | Auth | Controller |
+|---|---|---|---|
+| POST | `/api/auth/register` | No | `AuthController@register` |
+| POST | `/api/auth/login` | No | `AuthController@login` |
+| POST | `/api/auth/logout` | Sanctum | `AuthController@logout` |
+| GET | `/api/auth/me` | Sanctum | `AuthController@me` |
+| GET | `/api/students` | Sanctum | `StudentController@index` |
+| POST | `/api/students` | Sanctum | `StudentController@store` |
+| GET | `/api/students/{student}` | Sanctum | `StudentController@show` |
+| PUT/PATCH | `/api/students/{student}` | Sanctum | `StudentController@update` |
+| DELETE | `/api/students/{student}` | Sanctum | `StudentController@destroy` |
+| POST | `/api/students/{student}/photo` | Sanctum | `StudentController@uploadPhoto` |
+| DELETE | `/api/students/{student}/photo` | Sanctum | `StudentController@deletePhoto` |
+| GET | `/api/tuition-invoices` | Sanctum | `TuitionInvoiceController@index` |
+| POST | `/api/tuition-invoices` | Sanctum | `TuitionInvoiceController@store` |
+| GET | `/api/tuition-invoices/{tuition_invoice}` | Sanctum | `TuitionInvoiceController@show` |
+| POST | `/api/tuition-invoices/{tuition_invoice}/pay` | Sanctum | `TuitionInvoiceController@pay` |
+| GET | `/api/payment-attempts` | Sanctum | `PaymentAttemptController@index` |
+| GET | `/api/payment-attempts/{payment_attempt}` | Sanctum | `PaymentAttemptController@show` |
+| POST | `/api/payment-attempts/bundle` | Sanctum | `PaymentAttemptController@bundle` |
+| POST | `/api/payment-attempts/{payment_attempt}/cancel` | Sanctum | `PaymentAttemptController@cancel` |
+| POST | `/api/annual-prepayments` | Sanctum | `AnnualPrepaymentController@store` |
+| GET | `/api/invoices/{tuition_invoice}/bill` | Sanctum | `DocumentController@bill` |
+| GET | `/api/invoices/{tuition_invoice}/bill/download` | Sanctum | `DocumentController@billDownload` |
+| GET | `/api/payment-attempts/{payment_attempt}/receipt` | Sanctum | `DocumentController@receipt` |
+| GET | `/api/payment-attempts/{payment_attempt}/receipt/download` | Sanctum | `DocumentController@receiptDownload` |
+| GET | `/api/payment-attempts/{payment_attempt}/receipt/share` | Sanctum | `DocumentController@receiptShareUrl` |
+| POST | `/api/imports/preview` | Sanctum | `ImportController@preview` |
+| POST | `/api/imports/confirm` | Sanctum | `ImportController@confirm` |
+| GET | `/api/imports/template/students` | Sanctum | `ImportController@studentTemplate` |
+| GET | `/api/imports/template/tuition-invoices` | Sanctum | `ImportController@invoiceTemplate` |
+| GET | `/api/exports/{type}` | Sanctum | `ExportController@export` |
+| POST | `/api/midtrans/webhook` | No (CSRF exempt) | `MidtransWebhookController` |
 
 ## Known Issues
 - **`MIDTRANS_SERVER_KEY` not set** — `pay()`, `bundle()`, and `annual-prepayments` throw when calling Midtrans.
