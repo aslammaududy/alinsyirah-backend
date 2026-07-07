@@ -16,7 +16,6 @@ beforeEach(function () {
     $this->token = $this->user->createToken('test')->plainTextToken;
 
     Config::set('midtrans.server_key', 'SB-Mid-server-test-key');
-    Config::set('midtrans.payment_link_url', 'https://api.sandbox.midtrans.com/v1/payment-links');
 
     Http::fake();
 });
@@ -126,26 +125,4 @@ it('reverts manual invoices to draft and deletes annual_prepayment invoices', fu
     expect($manualInvoice->status)->toBe('draft');
 
     expect(TuitionInvoice::where('id', $annualInvoice->id)->exists())->toBeFalse();
-});
-
-it('deactivates midtrans payment link on cancel', function () {
-    $invoice = TuitionInvoice::factory()->pendingPayment()->create([
-        'student_id' => $this->student->id,
-    ]);
-
-    $attempt = PaymentAttempt::factory()->create([
-        'status' => 'created',
-        'provider_response' => ['id' => 'PL-deactivate-me'],
-    ]);
-
-    $attempt->invoices()->attach($invoice->id, ['allocated_amount' => $invoice->amount]);
-
-    $this->withToken($this->token)
-        ->postJson("/api/payment-attempts/{$attempt->id}/cancel")
-        ->assertOk();
-
-    Http::assertSent(function ($request) {
-        return $request->url() === 'https://api.sandbox.midtrans.com/v1/payment-links/PL-deactivate-me'
-            && $request->method() === 'DELETE';
-    });
 });

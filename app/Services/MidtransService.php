@@ -9,18 +9,9 @@ class MidtransService
 {
     private ?string $serverKey = null;
 
-    private ?string $paymentLinkUrl = null;
-
     public function setServerKey(string $key): static
     {
         $this->serverKey = $key;
-
-        return $this;
-    }
-
-    public function setPaymentLinkUrl(string $url): static
-    {
-        $this->paymentLinkUrl = $url;
 
         return $this;
     }
@@ -30,76 +21,40 @@ class MidtransService
         return $this->serverKey ?? config('midtrans.server_key');
     }
 
-    private function resolvePaymentLinkUrl(): string
+    private function resolveCoreApiBaseUrl(): string
     {
-        return $this->paymentLinkUrl ?? config('midtrans.payment_link_url');
+        return config('midtrans.core_api_base_url');
     }
 
-    public function createPaymentLink(array $params): array
+    public function createCharge(array $params): array
     {
-        $payload = $this->buildPaymentLinkPayload($params);
+        $payload = [
+            'payment_type' => $params['payment_type'],
+            'transaction_details' => $params['transaction_details'],
+            'item_details' => $params['item_details'],
+            'customer_details' => $params['customer_details'],
+        ];
+
+        if (isset($params['bank_transfer'])) {
+            $payload['bank_transfer'] = $params['bank_transfer'];
+        }
+
+        if (isset($params['bsi_va'])) {
+            $payload['bsi_va'] = $params['bsi_va'];
+        }
 
         $response = Http::withBasicAuth($this->resolveServerKey(), '')
             ->timeout(30)
-            ->post($this->resolvePaymentLinkUrl(), $payload);
+            ->post("{$this->resolveCoreApiBaseUrl()}/v2/charge", $payload);
 
         if ($response->failed()) {
             throw new RuntimeException(
-                'Midtrans Payment Link creation failed: '.$response->body(),
+                'Midtrans Core API charge failed: '.$response->body(),
                 $response->status()
             );
         }
 
         return $response->json();
-    }
-
-    /**
-     * Deactivate a Payment Link so it can no longer be paid.
-     * This is the Midtrans "Cancel Payment Link" endpoint.
-     */
-    public function deactivatePaymentLink(string $paymentLinkId): bool
-    {
-        $response = Http::withBasicAuth($this->resolveServerKey(), '')
-            ->timeout(30)
-            ->delete("{$this->resolvePaymentLinkUrl()}/{$paymentLinkId}");
-
-        return $response->successful();
-    }
-
-    public function buildPaymentLinkPayload(array $params): array
-    {
-        $payload = [
-            'transaction_details' => [
-                'order_id' => $params['order_id'],
-                'gross_amount' => $params['gross_amount'],
-            ],
-        ];
-
-        if (isset($params['usage_limit'])) {
-            $payload['usage_limit'] = $params['usage_limit'];
-        }
-
-        if (isset($params['expiry'])) {
-            $payload['expiry'] = $params['expiry'];
-        }
-
-        if (isset($params['item_details'])) {
-            $payload['item_details'] = $params['item_details'];
-        }
-
-        if (isset($params['customer_details'])) {
-            $payload['customer_details'] = $params['customer_details'];
-        }
-
-        if (isset($params['enabled_payments'])) {
-            $payload['enabled_payments'] = $params['enabled_payments'];
-        }
-
-        if (isset($params['callbacks'])) {
-            $payload['callbacks'] = $params['callbacks'];
-        }
-
-        return $payload;
     }
 
     public function verifySignature(string $orderId, string $statusCode, string $grossAmount, string $signature): bool
@@ -111,6 +66,6 @@ class MidtransService
 
     public function generateOrderId(): string
     {
-        return 'PL-'.strtoupper(bin2hex(random_bytes(12)));
+        return 'ORD-'.strtoupper(bin2hex(random_bytes(12)));
     }
 }

@@ -56,6 +56,8 @@ class PaymentAttemptController extends Controller
                 enabledPayments: $data['enabled_payments'] ?? null,
                 callbacks: $data['callbacks'] ?? null,
                 createdBy: $request->user()?->id,
+                paymentMethod: $data['payment_method'],
+                bank: $data['bank'] ?? null,
             );
 
             return PaymentAttemptResource::make($attempt);
@@ -68,7 +70,6 @@ class PaymentAttemptController extends Controller
      * Cancel a payment attempt and revert its linked invoices.
      *
      * - Paid attempts cannot be cancelled.
-     * - The Snap Link is deactivated at Midtrans (best-effort).
      * - annual_prepayment invoices are deleted permanently.
      * - manual/scheduled invoices are reverted to draft.
      */
@@ -83,17 +84,6 @@ class PaymentAttemptController extends Controller
         }
 
         DB::transaction(function () use ($paymentAttempt) {
-            // Deactivate Midtrans Snap Link (best-effort, don't fail on error).
-            if ($paymentAttempt->provider_response['id'] ?? null) {
-                try {
-                    $this->midtrans->deactivatePaymentLink(
-                        $paymentAttempt->provider_response['id']
-                    );
-                } catch (\Throwable) {
-                    // Log but don't throw — Midtrans deactivation is best-effort.
-                }
-            }
-
             // Cancel the payment attempt.
             $paymentAttempt->update([
                 'status' => 'cancelled',

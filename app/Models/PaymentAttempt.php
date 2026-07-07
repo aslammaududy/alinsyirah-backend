@@ -19,6 +19,9 @@ class PaymentAttempt extends Model
         'expiry_at',
         'status',
         'discount_amount',
+        'payment_method',
+        'fee_amount',
+        'fee_percentage',
         'provider_response',
         'created_by',
     ];
@@ -87,5 +90,10 @@ class PaymentAttempt extends Model
     public function getGrossAmount(): int
     {
         return $this->getTotalAllocatedAmount() - $this->discount_amount;
+    }
+
+    public function getTotalAmount(): int
+    {
+        return $this->getGrossAmount() + $this->fee_amount;
     }
 }

@@ -28,6 +28,8 @@ class BundlePaymentRequest extends FormRequest
             'enabled_payments' => ['sometimes', 'array'],
             'enabled_payments.*' => ['string'],
             'callbacks' => ['sometimes', 'array'],
+            'payment_method' => ['required', 'in:qris,bank_transfer'],
+            'bank' => ['required_if:payment_method,bank_transfer', 'string', 'in:bsi'],
         ];
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\PayTuitionInvoiceRequest;
 use App\Http\Requests\StoreTuitionInvoiceRequest;
 use App\Http\Resources\PaymentAttemptResource;
 use App\Http\Resources\TuitionInvoiceResource;
@@ -10,6 +11,7 @@ use App\Models\PaymentAttempt;
 use App\Models\PaymentAttemptInvoice;
 use App\Models\TuitionInvoice;
 use App\Services\MidtransService;
+use App\Services\PaymentMethodFeeService;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -18,6 +20,7 @@ class TuitionInvoiceController extends Controller
 {
     public function __construct(
         private readonly MidtransService $midtrans,
+        private readonly PaymentMethodFeeService $feeService,
     ) {}
 
     public function index(): AnonymousResourceCollection
@@ -44,9 +47,9 @@ class TuitionInvoiceController extends Controller
     }
 
     /**
-     * Create a Payment Link for a single invoice (per-invoice flow).
+     * Create a Payment Charge for a single invoice (per-invoice flow).
      */
-    public function pay(TuitionInvoice $tuitionInvoice): PaymentAttemptResource
+    public function pay(PayTuitionInvoiceRequest $request, TuitionInvoice $tuitionInvoice): PaymentAttemptResource
     {
         if ($tuitionInvoice->isTerminal()) {
             abort(422, 'Cannot create payment for a terminal invoice.');
@@ -59,53 +62,90 @@ class TuitionInvoiceController extends Controller
         $orderId = $this->midtrans->generateOrderId();
         $grossAmount = $tuitionInvoice->amount;
 
+        $validated = $request->validated();
+        $paymentMethod = $validated['payment_method'];
+        $bank = $validated['bank'] ?? null;
+
+        $fee = $this->feeService->calculate($paymentMethod, $grossAmount);
+        $totalAmount = $grossAmount + $fee['fee_amount'];
+
         $student = $tuitionInvoice->student;
 
+        $itemDetails = [
+            [
+                'id' => (string) $tuitionInvoice->id,
+                'name' => $tuitionInvoice->description ?? "{$tuitionInvoice->fee_type} - {$tuitionInvoice->period}",
+                'price' => $grossAmount,
+                'quantity' => 1,
+            ],
+        ];
+
+        if ($fee['fee_amount'] > 0) {
+            $itemDetails[] = [
+                'id' => 'fee',
+                'name' => $paymentMethod === 'qris' ? 'Biaya Admin QRIS (0.7%)' : 'Biaya Admin Transfer Bank',
+                'price' => $fee['fee_amount'],
+                'quantity' => 1,
+            ];
+        }
+
         try {
-            $result = DB::transaction(function () use ($tuitionInvoice, $orderId, $grossAmount, $student) {
+            $result = DB::transaction(function () use (
+                $tuitionInvoice, $orderId, $totalAmount, $student,
+                $itemDetails, $paymentMethod, $fee
+            ) {
                 $attempt = PaymentAttempt::create([
                     'provider_order_id' => $orderId,
                     'status' => 'creating',
+                    'payment_method' => $paymentMethod,
+                    'fee_amount' => $fee['fee_amount'],
+                    'fee_percentage' => $fee['fee_percentage'],
                 ]);
 
                 PaymentAttemptInvoice::create([
                     'payment_attempt_id' => $attempt->id,
                     'tuition_invoice_id' => $tuitionInvoice->id,
-                    'allocated_amount' => $grossAmount,
+                    'allocated_amount' => $tuitionInvoice->amount,
                 ]);
 
-                $response = $this->midtrans->createPaymentLink([
-                    'order_id' => $orderId,
-                    'gross_amount' => $grossAmount,
-                    'item_details' => [
-                        [
-                            'id' => (string) $tuitionInvoice->id,
-                            'name' => $tuitionInvoice->description ?? "{$tuitionInvoice->fee_type} - {$tuitionInvoice->period}",
-                            'price' => $grossAmount,
-                            'quantity' => 1,
-                        ],
+                $chargeParams = [
+                    'payment_type' => $paymentMethod,
+                    'transaction_details' => [
+                        'order_id' => $orderId,
+                        'gross_amount' => $totalAmount,
                     ],
+                    'item_details' => $itemDetails,
                     'customer_details' => [
                         'first_name' => $student->parent_name,
                         'email' => $student->parent_email,
                         'phone' => $student->parent_phone,
                     ],
-                ]);
+                ];
+
+                if ($paymentMethod === 'bank_transfer') {
+                    $chargeParams['bank_transfer'] = ['bank' => $bank ?? 'bsi'];
+                }
+
+                $response = $this->midtrans->createCharge($chargeParams);
+
+                $providerResponse = [
+                    'status_code' => $response['status_code'] ?? null,
+                    'transaction_status' => $response['transaction_status'] ?? null,
+                ];
+
+                if ($paymentMethod === 'qris' && isset($response['actions'][0]['url'])) {
+                    $providerResponse['qr_code_url'] = $response['actions'][0]['url'];
+                }
+
+                if ($paymentMethod === 'bank_transfer' && isset($response['va_numbers'][0])) {
+                    $providerResponse['va_number'] = $response['va_numbers'][0]['va_number'];
+                    $providerResponse['bank'] = $response['va_numbers'][0]['bank'];
+                }
 
                 $attempt->update([
-                    'payment_url' => $response['payment_url'],
                     'status' => 'created',
-                    'provider_response' => [
-                        'id' => $response['id'],
-                        'order_id' => $response['order_id'],
-                        'payment_url' => $response['payment_url'],
-                        'expiry' => $response['expiry'] ?? null,
-                    ],
+                    'provider_response' => $providerResponse,
                 ]);
-
-                if (isset($response['expiry'])) {
-                    $attempt->update(['expiry_at' => $response['expiry']]);
-                }
 
                 $tuitionInvoice->transitionTo('pending_payment');
 

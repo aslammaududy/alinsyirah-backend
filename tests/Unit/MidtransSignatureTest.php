@@ -42,5 +42,5 @@ it('generates a unique order id each time', function () {
     $id2 = $this->service->generateOrderId();
 
     expect($id1)->not->toBe($id2);
-    expect($id1)->toMatch('/^PL-[A-F0-9]{24}$/');
+    expect($id1)->toMatch('/^ORD-[A-F0-9]{24}$/');
 });

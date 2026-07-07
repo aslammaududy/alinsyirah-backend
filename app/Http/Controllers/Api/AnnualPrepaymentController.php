@@ -76,6 +76,8 @@ class AnnualPrepaymentController extends Controller
                 enabledPayments: $data['enabled_payments'] ?? null,
                 callbacks: $data['callbacks'] ?? null,
                 createdBy: $request->user()?->id,
+                paymentMethod: $data['payment_method'],
+                bank: $data['bank'] ?? null,
             );
 
             return PaymentAttemptResource::make($attempt);

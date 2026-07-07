@@ -13,6 +13,7 @@ class BundlePaymentService
 {
     public function __construct(
         private readonly MidtransService $midtrans,
+        private readonly PaymentMethodFeeService $feeService,
     ) {}
 
     public function bundle(
@@ -25,6 +26,8 @@ class BundlePaymentService
         ?array $enabledPayments = null,
         ?array $callbacks = null,
         ?int $createdBy = null,
+        string $paymentMethod = 'qris',
+        ?string $bank = null,
     ): PaymentAttempt {
         $terminal = $invoices->first(fn (TuitionInvoice $inv) => $inv->isTerminal());
         if ($terminal) {
@@ -53,6 +56,9 @@ class BundlePaymentService
             throw new RuntimeException('Gross amount must be greater than zero after discount.');
         }
 
+        $fee = $this->feeService->calculate($paymentMethod, $grossAmount);
+        $totalAmount = $grossAmount + $fee['fee_amount'];
+
         $orderId = $this->midtrans->generateOrderId();
 
         $student = $invoices->first()->student;
@@ -68,16 +74,29 @@ class BundlePaymentService
             ];
         })->values()->toArray();
 
+        if ($fee['fee_amount'] > 0) {
+            $itemDetails[] = [
+                'id' => 'fee',
+                'name' => $paymentMethod === 'qris' ? 'Biaya Admin QRIS (0.7%)' : 'Biaya Admin Transfer Bank',
+                'price' => $fee['fee_amount'],
+                'quantity' => 1,
+            ];
+        }
+
         return DB::transaction(function () use (
-            $orderId, $grossAmount, $invoices, $discountAmount,
-            $allocations, $student, $itemDetails, $usageLimit, $expiry,
-            $customerDetails, $enabledPayments, $callbacks, $createdBy
+            $orderId, $totalAmount, $invoices, $discountAmount,
+            $allocations, $student, $itemDetails,
+            $customerDetails, $createdBy,
+            $paymentMethod, $fee
         ) {
             $attempt = PaymentAttempt::create([
                 'provider_order_id' => $orderId,
                 'status' => 'creating',
                 'discount_amount' => $discountAmount,
                 'created_by' => $createdBy,
+                'payment_method' => $paymentMethod,
+                'fee_amount' => $fee['fee_amount'],
+                'fee_percentage' => $fee['fee_percentage'],
             ]);
 
             foreach ($invoices as $invoice) {
@@ -96,46 +115,49 @@ class BundlePaymentService
             // gross_amount = sum(allocated) - discount) is in place.
 
             try {
-                $response = $this->midtrans->createPaymentLink([
-                    'order_id' => $orderId,
-                    'gross_amount' => $grossAmount,
-                    'usage_limit' => $usageLimit ?? 1,
-                    'expiry' => $expiry,
+                $chargeParams = [
+                    'payment_type' => $paymentMethod,
+                    'transaction_details' => [
+                        'order_id' => $orderId,
+                        'gross_amount' => $totalAmount,
+                    ],
                     'item_details' => $itemDetails,
                     'customer_details' => $customerDetails ?? [
                         'first_name' => $student->parent_name,
                         'email' => $student->parent_email,
                         'phone' => $student->parent_phone,
                     ],
-                    'enabled_payments' => $enabledPayments,
-                    'callbacks' => $callbacks,
-                ]);
+                ];
+
+                if ($paymentMethod === 'bank_transfer') {
+                    $chargeParams['bank_transfer'] = ['bank' => $bank ?? 'bsi'];
+                }
+
+                $response = $this->midtrans->createCharge($chargeParams);
             } catch (RuntimeException $e) {
                 $attempt->update(['status' => 'failed']);
 
                 throw $e;
             }
 
-            $updateData = [
-                'payment_url' => $response['payment_url'],
-                'status' => 'created',
-                'provider_response' => [
-                    'id' => $response['id'],
-                    'order_id' => $response['order_id'],
-                    'payment_url' => $response['payment_url'],
-                    'expiry' => $response['expiry'] ?? null,
-                ],
+            $providerResponse = [
+                'status_code' => $response['status_code'] ?? null,
+                'transaction_status' => $response['transaction_status'] ?? null,
             ];
 
-            if (isset($response['expiry'])) {
-                $updateData['expiry_at'] = $response['expiry'];
+            if ($paymentMethod === 'qris' && isset($response['actions'][0]['url'])) {
+                $providerResponse['qr_code_url'] = $response['actions'][0]['url'];
             }
 
-            if (isset($response['usage_limit'])) {
-                $updateData['usage_limit'] = $response['usage_limit'];
+            if ($paymentMethod === 'bank_transfer' && isset($response['va_numbers'][0])) {
+                $providerResponse['va_number'] = $response['va_numbers'][0]['va_number'];
+                $providerResponse['bank'] = $response['va_numbers'][0]['bank'];
             }
 
-            $attempt->update($updateData);
+            $attempt->update([
+                'status' => 'created',
+                'provider_response' => $providerResponse,
+            ]);
 
             foreach ($invoices as $invoice) {
                 $invoice->transitionTo('pending_payment');
